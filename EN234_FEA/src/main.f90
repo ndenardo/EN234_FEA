@@ -11,7 +11,7 @@ program en234fea
   VS_root_folder = 'H:/Repos/EN234_FEA/EN234_FEA/'   ! This should work with Intel Studio on the remote desktop if you follow the instructions for cloning your EN234FEA fork 
   Eclipse_root_folder = './'   !  This should work with Eclipse
 
-  VS_root_folder = 'C:/Users/Bower/Source/Repos/EN234_FEA/EN234_FEA/'
+  !VS_root_folder = 'C:/Users/Bower/Source/Repos/EN234_FEA/EN234_FEA/'
   root_directory = VS_root_folder
     
 !
@@ -31,12 +31,12 @@ program en234fea
 !   Demo codes - these provide examples of coding and testing ABAQUS user elements in EN234FEA
 !
 !   Small strain linear elasticity - the UEL is in Abaqus_uel_3d.for
-   infil = 'input_files/Abaqus_uel_linear_elastic_3d.in'
-   outfil = 'Output_files/Abaqus_uel_linear_elastic_3d.out'
+   !infil = 'input_files/Abaqus_uel_linear_elastic_3d.in'
+   !outfil = 'Output_files/Abaqus_uel_linear_elastic_3d.out'
 
 !   Linear elastic plate with a central hole using an ABAQUS UEL
-!   infil = 'input_files/Abaqus_uel_holeplate_3d.in'
-!   outfil = 'Output_files/Abaqus_uel_holeplate_3d.out'
+   infil = 'input_files/Abaqus_uel_holeplate_3d.in'
+   outfil = 'Output_files/Abaqus_uel_holeplate_3d.out'
 
 !   Simple 1 element demonstration of an ABAQUS VUEL
 !   The source code for the user element is in abaqus_vuel.for
