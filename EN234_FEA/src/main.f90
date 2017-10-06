@@ -35,8 +35,8 @@ program en234fea
    !outfil = 'Output_files/Abaqus_uel_linear_elastic_3d.out'
 
 !   Linear elastic plate with a central hole using an ABAQUS UEL
-   infil = 'input_files/Abaqus_uel_holeplate_3d.in'
-   outfil = 'Output_files/Abaqus_uel_holeplate_3d.out'
+   !infil = 'input_files/Abaqus_uel_holeplate_3d.in'
+   !outfil = 'Output_files/Abaqus_uel_holeplate_3d.out'
 
 !   Simple 1 element demonstration of an ABAQUS VUEL
 !   The source code for the user element is in abaqus_vuel.for
@@ -66,8 +66,8 @@ program en234fea
 !   Homework 3: develop and test an ABAQUS user element implementing 2D linear elasticity with full integration
 
 !   Simple test of a 2D plane element
-!   infil = 'input_files/Abaqus_uel_linear_elastic_2d.in'
-!   outfil = 'Output_files/Abaqus_uel_linear_elastic_2d.out'
+   infil = 'input_files/Abaqus_uel_linear_elastic_2d.in'
+   outfil = 'Output_files/Abaqus_uel_linear_elastic_2d.out'
 
 !  Solve hole-in-a-plate problem with 4 noded quadrilateral elements
 !   infil = 'input_files/Abaqus_uel_holeplate_2d_quad4.in'
