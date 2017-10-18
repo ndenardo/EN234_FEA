@@ -66,8 +66,8 @@ program en234fea
 !   Homework 3: develop and test an ABAQUS user element implementing 2D linear elasticity with full integration
 
 !   Simple test of a 2D plane element
-   infil = 'input_files/Abaqus_uel_linear_elastic_2d.in'
-   outfil = 'Output_files/Abaqus_uel_linear_elastic_2d.out'
+!   infil = 'input_files/Abaqus_uel_linear_elastic_2d.in'
+!   outfil = 'Output_files/Abaqus_uel_linear_elastic_2d.out'
 
 !  Solve hole-in-a-plate problem with 4 noded quadrilateral elements
 !   infil = 'input_files/Abaqus_uel_holeplate_2d_quad4.in'
@@ -86,8 +86,8 @@ program en234fea
 
 !  HW5  Cantilever beam to test incompatible mode elements
 
-!   infil = 'input_files/Abaqus_uel_cantilever.in'
-!   outfil = 'Output_files/Abaqus_uel_cantilever.out'
+   infil = 'input_files/Abaqus_uel_cantilever.in'
+   outfil = 'Output_files/Abaqus_uel_cantilever.out'
 
 !  HW6  Porous elasticity UMAT
 
