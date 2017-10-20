@@ -164,6 +164,7 @@
       ktemp = 0.d0
       rhs_temp = 0.d0
 
+!      JTYPE = 1     !Cheap method of checking incompatible modes vs. not functionality.  Commented out by default.
       D = 0.d0
       E = PROPS(1)
       xnu = PROPS(2)
@@ -178,6 +179,8 @@
 
       ENERGY(1:8) = 0.d0
 
+! Section 1 - Incompatible Mode implementation if JTYPE = 2
+      if (JTYPE == 2) then
     ! Loop over integration points - first - calculate B and integrate to find khat (ktemp)
       do kint = 1, n_points
         call abq_UEL_2D_shapefunctions(xi(1:2,kint),NNODE,N,dNdxi)
@@ -281,6 +284,43 @@
       
       RHS(1:2*NNODE,1) = ru(1:2*NNODE)
      1-matmul(kua(1:2*NNODE,1:4),matmul(kaainv,ra))
+      
+! Section 2 - reverts to standard element if necessary if JTYPE = 1
+      else if (JTYPE == 1) then
+      do kint = 1, n_points
+        call abq_UEL_2D_shapefunctions(xi(1:2,kint),NNODE,N,dNdxi)
+        dxdxi = matmul(coords(1:2,1:NNODE),dNdxi(1:NNODE,1:2))
+        
+        call abq_UEL_invert2d(dxdxi,dxidx,determinant)
+        dNdx(1:NNODE,1:2) = matmul(dNdxi(1:NNODE,1:2),dxidx)
+        
+        B = 0.d0
+        B(1,1:2*NNODE-1:2) = dNdx(1:NNODE,1)
+        B(2,2:2*NNODE:2) = dNdx(1:NNODE,2)
+        B(4,1:2*NNODE-1:2) = dNdx(1:NNODE,2)
+        B(4,2:2*NNODE:2) = dNdx(1:NNODE,1)
+        
+        
+        strain = matmul(B(1:4,1:2*NNODE),U(1:2*NNODE))
+
+        stress = matmul(D,strain)
+        RHS(1:2*NNODE,1) = RHS(1:2*NNODE,1)
+     1   - matmul(transpose(B(1:4,1:2*NNODE)),stress(1:4))*
+     2                                          w(kint)*determinant
+
+        AMATRX(1:2*NNODE,1:2*NNODE) = AMATRX(1:2*NNODE,1:2*NNODE)
+     1  + matmul(transpose(B(1:4,1:2*NNODE)),matmul(D,B(1:4,1:2*NNODE)))
+     2                                             *w(kint)*determinant
+
+        ENERGY(2) = ENERGY(2)
+     1   + 0.5D0*dot_product(stress,strain)*w(kint)*determinant       !Store the elastic strain energy
+
+        if (NSVARS>=n_points*4) then   ! Store stress at each integration point (if space was allocated to do so)
+            SVARS(4*kint-3:4*kint) = stress(1:4)
+        endif
+      end do
+      
+      end if
 
       PNEWDT = 1.d0          ! This leaves the timestep unchanged (ABAQUS will use its own algorithm to determine DTIME)
 
