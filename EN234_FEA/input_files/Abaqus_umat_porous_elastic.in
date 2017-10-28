@@ -35,7 +35,7 @@
       END NODES
 %
 %     The MATERIAL command creates a new material.  The material properties can be assigned to ABAQUS style continuum elements to test an ABAQUS UMAT or VUMAT
-      MATERIAL, porous_elastic_umat
+      MATERIAL, abaqus_umat_porous_elastic
         STATE VARIABLES, 0          % Number of material state variables (if the key is omitted the number of state vars defaults to zero)
         PROPERTIES
 %         The properties are G, Poissons ratio (at zero strain, used to calculate bulk modulus), e0, pt
@@ -48,7 +48,7 @@
 %       The TYPE key selects an ABAQUS format continuum element
 %       The following elements are supported: C3D4, C3D8, C3D10, C3D20
         TYPE, C3D8
-        PROPERTIES, porous_elastic_umat
+        PROPERTIES, abaqus_umat_porous_elastic
 
 %     Define element connectivity
 %     The element number (first number in the list) is optional, and is ignored in the code
@@ -104,7 +104,7 @@
            1, 3, VALUE, 0.d0
            side, 2, VALUE, 0.d0
            left, 1, VALUE, 0.d0
-%           right, 1, HISTORY, dof_history
+           right, 1, HISTORY, dof_history
         END DEGREES OF FREEDOM
 
 
@@ -129,7 +129,7 @@
 %   the residual force vector is consistent with the stiffness
 %   The syntax is CHECK STIFFNESS, element flag (or Un for an ABAQUS element)
        CHECK STIFFNESS, C3D8
-       CHECK MATERIAL TANGENT, porous_elastic_umat
+       CHECK MATERIAL TANGENT, abaqus_umat_porous_elastic
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Analysis %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -157,7 +157,7 @@
 %                        UNSYMMETRIC  (optional - only for unsymmetric stiffness)
 %        It is silly to use the nonlinear option for linear elasticity, but is included here for demonstration purposes.
 
-         SOLVER, DIRECT, NONLINEAR, 1.d-09,15, UNSYMMETRIC
+         SOLVER, DIRECT, NONLINEAR, 1.d-04,15, UNSYMMETRIC
 %          SOLVER, DIRECT, LINEAR
 
 %      This prints the DOF values and projected nodal state for all solid elements to a tecplot readable file
@@ -184,6 +184,11 @@
 %             1.d0, 6.d0
 %             4
 %          END USER print PARAMETERS
+
+          USER PRINT FILES
+%          List file names to contain the output. Fortran unit numbers are provided to each file in the user subroutine
+            Output_files\stressvstrain.dat
+          END USER PRINT FILES
 
         END STATIC STEP
          

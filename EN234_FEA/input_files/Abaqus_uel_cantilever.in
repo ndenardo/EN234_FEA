@@ -108,7 +108,7 @@
 %     The parameters are no. nodes on the element, total no. state variables (4*# integration points), integer identifier
 
       ELEMENTS, USER
-        PARAMETERS, 4, 16, U1
+        PARAMETERS, 4, 16, U2
 %       Define element properties - the values are passed to user subroutine elstif in the order they are listed here
 %       For the example provided, the params are Youngs Modulus, Poissons ratio
         PROPERTIES
@@ -234,7 +234,7 @@
 
 %   The CHECK STIFFNESS key tests the element subroutine to ensure that
 %   the residual force vector is consistent with the stiffness
-       CHECK STIFFNESS, U1
+       CHECK STIFFNESS, U2
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Analysis %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

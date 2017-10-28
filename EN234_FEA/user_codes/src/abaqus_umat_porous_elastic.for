@@ -3,7 +3,7 @@
 !
 !
 
-      SUBROUTINE UMAT_0(STRESS,STATEV,DDSDDE,SSE,SPD,SCD,
+      SUBROUTINE UMAT(STRESS,STATEV,DDSDDE,SSE,SPD,SCD,
      1 RPL,DDSDDT,DRPLDE,DRPLDT,
      2 STRAN,DSTRAN,TIME,DTIME,TEMP,DTEMP,PREDEF,DPRED,CMNAME,
      3 NDI,NSHR,NTENS,NSTATV,PROPS,NPROPS,COORDS,DROT,PNEWDT,
@@ -251,60 +251,50 @@
 !
 !     Local variables
 
-      double precision E,xnu
-      integer i,j
+      double precision G,xnu,e0,pt
+      double precision cayb,evol,edev(6),cap
 
-      ddsdde = 0.d0
+      DDSDDE(1:6,1:6) = 0.d0
+      STRESS(1:6) = 0.d0
+      evol = 0.d0
+      edev(1:6) = 0.d0
+      cayb = 0.d0
 
-      E = props(1)
+      G = props(1)
       xnu = props(2)
+      e0 = props(3)
+      pt = props(4)
+      cap = (pt*(1-2*xnu)*(1+e0))/(1+xnu)
+      
+      
+      evol = sum(STRAN(1:3)+DSTRAN(1:3))
+      edev(1:3) = STRAN(1:3)+DSTRAN(1:3) - evol/3.d0
+      edev(4:6) = 0.5d0*(STRAN(4:6)+DSTRAN(4:6))
+      
+      cayb = (pt/3)*(1+e0)/cap*exp(-1*(1+e0)*evol/cap) - 2*G/3
+      
+!     Define components of the tangent stiffness matrix
+      
+      DDSDDE(1,1) = 2*G + cayb
+      DDSDDE(2,2) = 2*G + cayb
+      DDSDDE(3,3) = 2*G + cayb
+      DDSDDE(4,4) = G
+      DDSDDE(5,5) = G
+      DDSDDE(6,6) = G
+      DDSDDE(1,2) = cayb
+      DDSDDE(1,3) = cayb
+      DDSDDE(2,3) = cayb
+      DDSDDE(2,1) = cayb
+      DDSDDE(3,1) = cayb
+      DDSDDE(3,2) = cayb
 
-!    for debugging, you can use
-!      write(6,*) ' Hello '
-!    Output is then written to the .dat file
-
-      If (ndi==3 .and. nshr==1) then    ! Plane strain or axisymmetry
-         ddsdde(1,1) = 1.d0-xnu
-         ddsdde(1,2) = xnu
-         ddsdde(1,3) = xnu
-         ddsdde(2,1) = xnu
-         ddsdde(2,2) = 1.d0-xnu
-         ddsdde(2,3) = xnu
-         ddsdde(3,1) = xnu
-         ddsdde(3,2) = xnu
-         ddsdde(3,3) = 1.d0-xnu
-         ddsdde(4,4) = 0.5d0*(1.d0-2.d0*xnu)
-         ddsdde = ddsdde*E/( (1.d0+xnu)*(1.d0-2.d0*xnu) )
-      else if (ndi==2 .and. nshr==1) then   ! Plane stress
-         ddsdde(1,1) = 1.d0
-         ddsdde(1,2) = xnu
-         ddsdde(2,1) = xnu
-         ddsdde(2,2) = 1.d0
-         ddsdde(3,3) = 0.5d0*(1.d0-xnu)
-         ddsdde = ddsdde*E/( (1.d0+xnu*xnu) )
-      else ! 3D
-         ddsdde(1,1) = 1.d0-xnu
-         ddsdde(1,2) = xnu
-         ddsdde(1,3) = xnu
-         ddsdde(2,1) = xnu
-         ddsdde(2,2) = 1.d0-xnu
-         ddsdde(2,3) = xnu
-         ddsdde(3,1) = xnu
-         ddsdde(3,2) = xnu
-         ddsdde(3,3) = 1.d0-xnu
-         ddsdde(4,4) = 0.5d0*(1.d0-2.d0*xnu)
-         ddsdde(5,5) = ddsdde(4,4)
-         ddsdde(6,6) = ddsdde(4,4)
-         ddsdde = ddsdde*E/( (1.d0+xnu)*(1.d0-2.d0*xnu) )
-      endif
-!
 !     NOTE: ABAQUS uses engineering shear strains,
 !     i.e. stran(ndi+1) = 2*e_12, etc...
-      do i = 1,ntens
-      do j = 1,ntens
-         stress(i) = stress(i) + ddsdde(i,j)*dstran(j)
-      end do
-      end do
+      
+      STRESS(1:3) = 2*G*edev(1:3) + (pt/3)*(1-exp(-1*(1+e0)*evol/cap))
+      STRESS(4:6) = 2*G*edev(4:6)
 
+      
+      
       RETURN
-      END subroutine UMAT_0
+      END subroutine UMAT
