@@ -3,17 +3,19 @@
 !
 !    This file is compatible with both EN234_FEA and ABAQUS/Standard
 !
-!    The example implements a standard fully integrated 3D linear elastic continuum element
+!    The example implements a standard fully integrated 3D hyperelastic continuum element
 !
 !    The file also contains the following subrouines:
 !          abq_UEL_3D_integrationpoints           - defines integration ponits for 3D continuum elements
 !          abq_UEL_3D_shapefunctions              - defines shape functions for 3D continuum elements
 !          abq_UEL_invert3D                       - computes the inverse and determinant of a 3x3 matrix
 !          abq_facenodes_3D                       - returns list of nodes on the face of a 3D element
+!          hyper_3D_stress                        - computes hyperelastic 2PK stress and tangent stiffness       
+!          hyper_3D_stress                        - computes hyperelastic 2PK stress and tangent stiffness
 !
 !=========================== ABAQUS format user element subroutine ===================
 
-      SUBROUTINE UEL_3D(RHS,AMATRX,SVARS,ENERGY,NDOFEL,NRHS,NSVARS,
+      SUBROUTINE UEL(RHS,AMATRX,SVARS,ENERGY,NDOFEL,NRHS,NSVARS,
      1     PROPS,NPROPS,COORDS,MCRD,NNODE,U,DU,V,A,JTYPE,TIME,DTIME,
      2     KSTEP,KINC,JELEM,PARAMS,NDLOAD,JDLTYP,ADLMAG,PREDEF,NPREDF,
      3     LFLAGS,MLVARX,DDLMAG,MDLOAD,PNEWDT,JPROPS,NJPROP,PERIOD)
@@ -104,7 +106,7 @@
       double precision  ::  dxdxi(3,3)                        ! Derivative of position wrt normalized coords
       double precision  ::  dNdx(20,3)                        ! Derivative of shape functions wrt spatial coords
     !
-    !   Variables below are for computing integrals over element faces
+    ! Variables below are for computing integrals over element faces
       double precision  ::  face_coords(3,8)                  ! Coords of nodes on an element face
       double precision  ::  xi2(2,9)                          ! Area integration points
       double precision  ::  N2(9)                             ! 2D shape functions
@@ -114,17 +116,34 @@
     !
       double precision  ::  strain(6)                         ! Strain vector contains [e11, e22, e33, 2e12, 2e13, 2e23]
       double precision  ::  stress(6)                         ! Stress vector contains [s11, s22, s33, s12, s13, s23]
-      double precision  ::  D(6,6)                            ! stress = D*(strain)  (NOTE FACTOR OF 2 in shear strain)
-      double precision  ::  B(6,60)                           ! strain = B*(dof_total)
+      double precision  ::  delta(3,3)                        ! Identity matrix
+      double precision  ::  F(3,3)                            ! Deformation gradient
+      double precision  ::  Ja                                ! Jacobian
+      double precision  ::  G(6,6)                            ! Anisotropic elastic moduli                        
+      double precision  ::  B(9,60)                           ! Bstar matrix, maps displacements onto deformation gradient. Call B for simplicity
+      double precision  ::  uint(3,20)                        ! Rearranged, internal displacement matrix for calculating F via matmul
+      double precision  ::  D(6,6)                            ! Material tangent stiffness
+      double precision  ::  Sigma(6)                          ! Second Piola-Kirchoff stress
+      double precision  ::  E(3,3)                            ! 2PK stress in matrix form
+      double precision  ::  EFT(3,3)                          ! Nominal stress matrix, components of q
+      double precision  ::  Q(9)                              ! Nominal stress vector
+      double precision  ::  kab(20,20)                        ! Intermediary stiffness matrix for calculating geo stiffness Y
+      double precision  ::  Y(60,60)                          ! Geometric stiffness matrix
+      double precision  ::  Cauchy(3,3)                       ! Cauchy stress matrix
+      double precision  ::  Cauchyv(6)                        ! Vector of cauchy stress components
+      double precision  ::  H(6,9)                            ! H matrix, used in calculating stiffness
       double precision  ::  dxidx(3,3), determinant           ! Jacobian inverse and determinant
-      double precision  ::  E, xnu, D44, D11, D12             ! Material properties
+      double precision  ::  mu, K, G11, G22, G33, G44         ! Material properties
 
-    !
-    !     Example ABAQUS UEL implementing 3D linear elastic elements
+    !     ABAQUS UEL implementing 3D hyperelastic elements
+
     !     El props are:
-
-    !     PROPS(1)         Young's modulus
-    !     PROPS(2)         Poisson's ratio
+    !     PROPS(1)         Constant, mu
+    !     PROPS(2)         Bulk Modulus, K
+    !     PROPS(3)         G matrix, G11
+    !     PROPS(4)         G matrix, G22
+    !     PROPS(5)         G matrix, G33
+    !     PROPS(6)         G matrix, G44 = G55 = G66
 
       if (NNODE == 4) n_points = 1               ! Linear tet
       if (NNODE == 10) n_points = 4              ! Quadratic tet
@@ -140,70 +159,168 @@
         stop
       endif
 
+      ! Initialize variables
+      delta = 0.d0
+      delta(1,1) = 1.d0
+      delta(2,2) = 1.d0
+      delta(3,3) = 1.d0
+      
       RHS(1:MLVARX,1) = 0.d0
       AMATRX(1:NDOFEL,1:NDOFEL) = 0.d0
-
+      
+      G = 0.d0
+      mu = PROPS(1)
+      K = PROPS(2)
+      G(1,1) = PROPS(3)
+      G(2,2) = PROPS(4)
+      G(3,3) = PROPS(5)
+      G(4,4) = PROPS(6)
+      G(5,5) = PROPS(6)
+      G(6,6) = PROPS(6)
+      
       D = 0.d0
-      E = PROPS(1)
-      xnu = PROPS(2)
-      d44 = 0.5D0*E/(1+xnu)
-      d11 = (1.D0-xnu)*E/( (1+xnu)*(1-2.D0*xnu) )
-      d12 = xnu*E/( (1+xnu)*(1-2.D0*xnu) )
-      D(1:3,1:3) = d12
-      D(1,1) = d11
-      D(2,2) = d11
-      D(3,3) = d11
-      D(4,4) = d44
-      D(5,5) = d44
-      D(6,6) = d44
+      Sigma = 0.d0
+      
+      ! Assemble internal displacement matrix
+      uint = 0.d0
+      do j = 0, (NNODE-1)
+          do i = 1, 3
+              uint(i,j+1) = U(3*j + i)
+          end do
+      end do
+      
 
       ENERGY(1:8) = 0.d0
 
-    !     --  Loop over integration points
+    !Loop over integration points
       do kint = 1, n_points
+        
         call abq_UEL_3D_shapefunctions(xi(1:3,kint),NNODE,N,dNdxi)
         dxdxi = matmul(coords(1:3,1:NNODE),dNdxi(1:NNODE,1:3))
+        
         call abq_UEL_invert3d(dxdxi,dxidx,determinant)
         dNdx(1:NNODE,1:3) = matmul(dNdxi(1:NNODE,1:3),dxidx)
+        
+        ! Calculate the component matrices and vectors of the stiffness matrix
         B = 0.d0
         B(1,1:3*NNODE-2:3) = dNdx(1:NNODE,1)
         B(2,2:3*NNODE-1:3) = dNdx(1:NNODE,2)
         B(3,3:3*NNODE:3)   = dNdx(1:NNODE,3)
         B(4,1:3*NNODE-2:3) = dNdx(1:NNODE,2)
-        B(4,2:3*NNODE-1:3) = dNdx(1:NNODE,1)
-        B(5,1:3*NNODE-2:3) = dNdx(1:NNODE,3)
-        B(5,3:3*NNODE:3)   = dNdx(1:NNODE,1)
-        B(6,2:3*NNODE-1:3) = dNdx(1:NNODE,3)
-        B(6,3:3*NNODE:3)   = dNdx(1:NNODE,2)
-
-        strain = matmul(B(1:6,1:3*NNODE),U(1:3*NNODE))
-
-        stress = matmul(D,strain)
+        B(5,2:3*NNODE-1:3) = dNdx(1:NNODE,1)
+        B(6,1:3*NNODE-2:3) = dNdx(1:NNODE,3)
+        B(7,3:3*NNODE:3)   = dNdx(1:NNODE,1)
+        B(8,2:3*NNODE-1:3) = dNdx(1:NNODE,3)
+        B(9,3:3*NNODE:3)   = dNdx(1:NNODE,2)
+        
+        F = 0.d0
+        Ja = 0.d0
+        F = matmul(uint(1:3,1:NNODE),dNdx(1:NNODE,1:3))+delta
+        
+        call hyper_3D_stress(G, F, mu, K, Sigma, D, Ja)
+        
+        E = 0.d0
+        E(1,1) = Sigma(1)
+        E(2,2) = Sigma(2)
+        E(3,3) = Sigma(3)
+        E(1,2) = Sigma(4)
+        E(2,1) = Sigma(4)
+        E(1,3) = Sigma(5)
+        E(3,1) = Sigma(5)
+        E(2,3) = Sigma(6)
+        E(3,2) = Sigma(6)
+        
+        EFT = matmul(E,transpose(F))
+        
+        Q = 0.d0
+        Q(1) = EFT(1,1)
+        Q(2) = EFT(2,2)
+        Q(3) = EFT(3,3)
+        Q(4) = EFT(2,1)
+        Q(5) = EFT(1,2)
+        Q(6) = EFT(3,1)
+        Q(7) = EFT(1,3)
+        Q(8) = EFT(3,2)
+        Q(9) = EFT(2,3)
+        
+        H = 0.d0
+        H(1,1) = F(1,1)
+        H(2,2) = F(2,2)
+        H(3,3) = F(3,3)
+        H(4,1) = F(1,2)
+        H(4,2) = F(2,1)
+        H(5,1) = F(1,3)
+        H(5,3) = F(3,1)
+        H(6,2) = F(2,3)
+        H(6,3) = F(3,2)
+        H(1,5) = F(2,1)
+        H(2,4) = F(1,2)
+        H(3,6) = F(1,3)
+        H(4,4) = F(1,1)
+        H(4,5) = F(2,2)
+        H(5,5) = F(2,3)
+        H(5,6) = F(1,1)
+        H(6,4) = F(1,3)
+        H(6,6) = F(1,2)
+        H(1,7) = F(3,1)
+        H(2,9) = F(3,2)
+        H(3,8) = F(2,3)
+        H(4,7) = F(3,2)
+        H(4,9) = F(3,1)
+        H(5,7) = F(3,3)
+        H(5,8) = F(2,1)
+        H(6,8) = F(2,2)
+        H(6,9) = F(3,3)
+        
+        kab = 0.d0
+        kab(1:NNODE,1:NNODE) = matmul(dNdx(1:NNODE,1:3),
+     1                        matmul(E,transpose(dNdx(1:NNODE,1:3))))
+        
+        Y = 0.d0
+        do i = 0, (NNODE-1)
+            do j = 0, (NNODE-1)
+                Y(3*i+1,3*j+1) = kab(i+1,j+1)
+                Y(3*i+2,3*j+2) = kab(i+1,j+1)
+                Y(3*i+3,3*j+3) = kab(i+1,j+1)
+            end do
+        end do
+        
+        ! Assemble element right hand side vector and element stiffness vector
+        
         RHS(1:3*NNODE,1) = RHS(1:3*NNODE,1)
-     1   - matmul(transpose(B(1:6,1:3*NNODE)),stress(1:6))*
+     1   - matmul(transpose(B(1:9,1:3*NNODE)),Q)*
      2                                          w(kint)*determinant
 
-        AMATRX(1:3*NNODE,1:3*NNODE) = AMATRX(1:3*NNODE,1:3*NNODE)
-     1  + matmul(transpose(B(1:6,1:3*NNODE)),matmul(D,B(1:6,1:3*NNODE)))
-     2                                             *w(kint)*determinant
+        AMATRX(1:3*NNODE,1:3*NNODE) = AMATRX(1:3*NNODE,1:3*NNODE) + 
+     1  (matmul(transpose(B(1:9,1:3*NNODE)),matmul(transpose(H),
+     2  matmul(D,matmul(H,B(1:9,1:3*NNODE))))) + Y(1:3*NNODE,1:3*NNODE))
+     3  *w(kint)*determinant
 
+        ! Store the elastic strain energy
         ENERGY(2) = ENERGY(2)
-     1   + 0.5D0*dot_product(stress,strain)*w(kint)*determinant           ! Store the elastic strain energy
+     1   + 0.5D0*dot_product(stress,strain)*w(kint)*determinant   
 
+        !Calculate Cauchy stress / components
+        Cauchy = 0.d0
+        Cauchyv = 0.d0
+        Cauchy = (1.d0/Ja)*matmul(F,EFT)
+        Cauchyv(1) = Cauchy(1,1)
+        Cauchyv(2) = Cauchy(2,2)
+        Cauchyv(3) = Cauchy(3,3)
+        Cauchyv(4) = Cauchy(1,2)
+        Cauchyv(5) = Cauchy(1,3)
+        Cauchyv(6) = Cauchy(2,3)
+        
         if (NSVARS>=n_points*6) then   ! Store stress at each integration point (if space was allocated to do so)
-            SVARS(6*kint-5:6*kint) = stress(1:6)
+            SVARS(6*kint-5:6*kint) = Cauchyv(1:6)
         endif
-      end do
-
+      end do      
 
       PNEWDT = 1.d0          ! This leaves the timestep unchanged (ABAQUS will use its own algorithm to determine DTIME)
-    !
-    !   Apply distributed loads
-    !
+      
+    !   Apply distributed loads:
     !   Distributed loads are specified in the input file using the Un option in the input file.
     !   n specifies the face number, following the ABAQUS convention
-    !
-    !
       do j = 1,NDLOAD
 
         call abq_facenodes_3D(NNODE,iabs(JDLTYP(j,1)),
@@ -239,10 +356,9 @@
 
       return
 
-      END SUBROUTINE UEL_3D
+      END SUBROUTINE UEL
 
-
-      subroutine abq_UEL_3D_integrationpoints1(n_points, n_nodes, xi, w)
+      subroutine abq_UEL_3D_integrationpoints(n_points, n_nodes, xi, w)
 
       implicit none
       integer, intent(in) :: n_points
@@ -363,10 +479,9 @@
 
       return
 
-      end subroutine abq_UEL_3D_integrationpoints1
+      end subroutine abq_UEL_3D_integrationpoints
 
-
-      subroutine abq_UEL_3D_shapefunctions1(xi,n_nodes,f,df)
+      subroutine abq_UEL_3D_shapefunctions(xi,n_nodes,f,df)
 
       implicit none
       integer, intent(in) :: n_nodes
@@ -566,12 +681,9 @@
       endif
 
 
-      end subroutine abq_UEL_3D_shapefunctions1
+      end subroutine abq_UEL_3D_shapefunctions
 
-
-
-
-      subroutine abq_UEL_invert3d1(A,A_inverse,determinant)
+      subroutine abq_UEL_invert3d(A,A_inverse,determinant)
 
       double precision, intent(in) :: A(3,3)
       double precision, intent(out) :: A_inverse(3,3)
@@ -606,9 +718,9 @@
       A_inverse = transpose(COFACTOR) / determinant
 
 
-      end subroutine abq_UEL_invert3d1
+      end subroutine abq_UEL_invert3d
 
-      subroutine abq_facenodes_3D1(nelnodes,face,list,nfacenodes)
+      subroutine abq_facenodes_3D(nelnodes,face,list,nfacenodes)
 
       implicit none
 
@@ -667,6 +779,129 @@
         if (face == 6) list(1:8) = [4,8,5,1,20,16,17,12]
       endif
 
-      end subroutine abq_facenodes_3D1
+      end subroutine abq_facenodes_3D
 
+      subroutine hyper_3D_stress(A, Fs, mus, Ks, Sigmas, Ds, J)
 
+      implicit none
+      
+      double precision, intent(in) :: A(6,6)
+      double precision, intent(in) :: Fs(3,3)
+      double precision, intent(in) :: mus
+      double precision, intent(in) :: Ks
+
+      double precision, intent(out) :: Sigmas(6)
+      double precision, intent(out) :: Ds(6,6)
+      double precision, intent(out) :: J
+
+      double precision :: Cmat(3,3)
+      double precision :: Cimat(3,3)
+      double precision :: Cidet
+      double precision :: C(6), Ch(6), Ci(6), Cs(6), Csh(6)
+      double precision :: P(6)
+      double precision :: Q
+      double precision :: Omega(6,6)
+      double precision :: id(6)
+      
+      id = 0.d0
+      id(1) = 1.d0
+      id(2) = 1.d0
+      id(3) = 1.d0
+      
+      J =   Fs(1,1)*Fs(2,2)*Fs(3,3)
+     1   - Fs(1,1)*Fs(2,3)*Fs(3,2)
+     2   - Fs(1,2)*Fs(2,1)*Fs(3,3)
+     3   + Fs(1,2)*Fs(2,3)*Fs(3,1)
+     4   + Fs(1,3)*Fs(2,1)*Fs(3,2)
+     5   - Fs(1,3)*Fs(2,2)*Fs(3,1)
+      
+      !Define necessary values in calculation of stress and tangent
+      Cmat = matmul(transpose(Fs),Fs)
+      C(1) = Cmat(1,1)
+      C(2) = Cmat(2,2)
+      C(3) = Cmat(3,3)
+      C(4) = Cmat(1,2)
+      C(5) = Cmat(1,3)
+      C(6) = Cmat(2,3)
+      
+      Ch = (1.d0/J**(2.d0/3.d0))*C
+      
+      call abq_UEL_invert3d(Cmat,Cimat,Cidet)
+      Ci(1) = Cimat(1,1)
+      Ci(2) = Cimat(2,2)
+      Ci(3) = Cimat(3,3)
+      Ci(4) = Cimat(1,2)
+      Ci(5) = Cimat(1,3)
+      Ci(6) = Cimat(2,3)
+      
+      Cs = C
+      Cs(4) = 2.d0*C(4)
+      Cs(5) = 2.d0*C(5)
+      Cs(6) = 2.d0*C(6)
+      Csh = (1.d0/J**(2.d0/3.d0))*Cs
+      
+      P = 0.d0
+      P = (1.d0/(2.d0*J**(2.d0/3.d0))) * ( matmul(A,(Csh-id))
+     1 - (1.d0/3.d0)*dot_product(Cs,matmul(A,(csh-id)))*Ci )
+      
+      Q = (0.25d0)*dot_product((Csh-id),matmul(A,(Csh-id)))
+      
+      Omega = 0.d0
+      Omega(1,1) = Ci(1)*Ci(1)
+      Omega(1,2) = Ci(4)*Ci(4)
+      Omega(1,3) = Ci(5)*Ci(5)
+      Omega(1,4) = Ci(1)*Ci(4)
+      Omega(1,5) = Ci(1)*Ci(5)
+      Omega(1,6) = Ci(4)*Ci(5)
+      Omega(2,1) = Ci(4)*Ci(4)
+      Omega(3,1) = Ci(5)*Ci(5)
+      Omega(4,1) = Ci(1)*Ci(4)
+      Omega(5,1) = Ci(1)*Ci(5)
+      Omega(6,1) = Ci(4)*Ci(5)
+      Omega(2,2) = Ci(2)*Ci(2)
+      Omega(2,3) = Ci(6)*Ci(6)
+      Omega(2,4) = Ci(4)*Ci(2)
+      Omega(2,5) = Ci(4)*Ci(6)
+      Omega(2,6) = Ci(2)*Ci(6)
+      Omega(3,2) = Ci(6)*Ci(6)
+      Omega(4,2) = Ci(4)*Ci(2)
+      Omega(5,2) = Ci(4)*Ci(6)
+      Omega(6,2) = Ci(2)*Ci(6)
+      Omega(3,3) = Ci(3)*Ci(3)
+      Omega(3,4) = Ci(5)*Ci(6)
+      Omega(3,5) = Ci(5)*Ci(3)
+      Omega(3,6) = Ci(6)*Ci(3)
+      Omega(4,3) = Ci(5)*Ci(6)
+      Omega(5,3) = Ci(5)*Ci(3)
+      Omega(6,3) = Ci(6)*Ci(3)
+      Omega(4,4) = (0.5d0)*(Ci(1)*Ci(2) + Ci(4)*Ci(4))
+      Omega(4,5) = (0.5d0)*(Ci(1)*Ci(6) + Ci(5)*Ci(4))
+      Omega(4,6) = (0.5d0)*(Ci(4)*Ci(6) + Ci(5)*Ci(2))
+      Omega(5,4) = (0.5d0)*(Ci(1)*Ci(6) + Ci(5)*Ci(4))
+      Omega(6,4) = (0.5d0)*(Ci(4)*Ci(6) + Ci(5)*Ci(2))
+      Omega(5,5) = (0.5d0)*(Ci(1)*Ci(3) + Ci(5)*Ci(5))
+      Omega(5,6) = (0.5d0)*(Ci(4)*Ci(3) + Ci(5)*Ci(6))
+      Omega(6,5) = (0.5d0)*(Ci(4)*Ci(3) + Ci(5)*Ci(6))
+      Omega(6,6) = (0.5d0)*(Ci(2)*Ci(3) + Ci(6)*Ci(6))
+      Omega = -1.d0*Omega
+      
+      !Compute stress and tangent stiffness
+
+      Sigmas = mus*exp(Q)*P + Ks*J*(J-1.d0)*Ci
+      
+      Ds = mus*exp(Q)*( (1.d0/J**(4.d0/3.d0)) * ( A - (1.d0/3.d0)*(
+     &matmul(A,(spread(Cs,dim=2,ncopies=6)*spread(Ci,dim=1,ncopies=6)))+
+     &(spread(Ci,dim=2,ncopies=6)*spread(matmul(A,Cs),dim=1,ncopies=6)))
+     & - (J**(2.d0/3.d0)/3.d0)*dot_product(Cs,matmul(A,(Csh-id)))*Omega
+     & + (1.d0/9.d0)*dot_product(Cs,matmul(A,Cs))*
+     &(spread(Ci,dim=2,ncopies=6)*spread(Ci,dim=1,ncopies=6))))
+     &
+     & + mus*exp(Q)*( 2*(spread(P,dim=2,ncopies=6)*
+     &spread((P-(1.d0/3.d0)*Ci),dim=1,ncopies=6)) - (1.d0/(3.d0*
+     &J**(2.d0/3.d0)))*(spread(Ci,dim=2,ncopies=6)*
+     &spread(matmul(A,(Csh-id)),dim=1,ncopies=6)))
+     &
+     & + Ks*J*( (2*J-1.d0)*(spread(Ci,dim=2,ncopies=6)*
+     & spread(Ci,dim=1,ncopies=6)) + 2*(J-1.d0)*Omega )
+      
+      end subroutine hyper_3D_stress
