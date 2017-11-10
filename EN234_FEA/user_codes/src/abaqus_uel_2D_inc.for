@@ -3,12 +3,15 @@
 !
 !    This file is compatible with both EN234_FEA and ABAQUS/Standard
 !
-!    The example implements a standard fully integrated 3D linear elastic continuum element
+!    The example implements a standard fully integrated 2D linear elastic continuum element with incompatible modes
 !
-!    The file also contains the following subrouines:
-!          abq_UEL_2D_integrationpoints           - defines integration points for 2D continuum elements
-!          abq_UEL_2D_shapefunctions              - defines shape functions for 2D continuum elements
-!          abq_UEL_1D_integrationpoints(n_points, n_nodes, xi, w)  = defines integration points for 1D line integral
+!    The file also contains the following subroutines:
+!          abq_UEL_2D_integrationpoints          - defines integration points for 2D continuum elements
+!          abq_UEL_2D_shapefunctions             - defines shape functions for 2D continuum elements
+!          abq_UEL_1D_integrationpoints          - defines integration points for 1D line integral
+!          abq_facenodes_2D                      - returns a list of nodes on an element face
+!          abq_inverse_LU                        - computes the inverse of an arbitrary matrix by LU decomposition
+!          abq_UEL_invert2d                      - computes the inverse and determinant of a 2x2 matrix
 !=========================== ABAQUS format user element subroutine ===================
 
       SUBROUTINE UEL_2D_inc(RHS,AMATRX,SVARS,ENERGY,NDOFEL,NRHS,NSVARS,
@@ -797,7 +800,7 @@
 
       double precision COFACTOR(2,2)
 
-!   Compute inverse and determinant of 3x3 matrix
+!   Compute inverse and determinant of 2x2 matrix
 
       determinant =   A(1,1)*A(2,2)
      1   - A(2,1)*A(1,2)

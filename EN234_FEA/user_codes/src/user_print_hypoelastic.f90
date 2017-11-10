@@ -1,5 +1,5 @@
 
-subroutine user_print(n_steps)
+subroutine user_print1(n_steps)
   use Types
   use ParamIO
   use Globals, only : TIME, DTIME
@@ -28,7 +28,7 @@ subroutine user_print(n_steps)
 
    write(user_print_units(1),'(2(1x,D12.5))') vol_averaged_strain(1),vol_averaged_stress(1)
 
-end subroutine user_print
+end subroutine user_print1
 
 subroutine compute_hypoelastic_averages_3D(vol_averaged_strain,vol_averaged_stress)
     use Types

@@ -2869,7 +2869,7 @@
 %       Define element properties - the values are passed to user subroutine elstif in the order they are listed here
         PROPERTIES
          2.d04, 0.3d0      % E, nu
-         0.02d0, 1.d0, 0.0001d0, 1.d0   % Omega, W, kappa, diffusion coefft
+         0.0d0, 1.d0, 0.0001d0, 1.d0   % Omega, W, kappa, diffusion coefft
          0.5d0                     % Theta
         END PROPERTIES
 %     Define element connectivity
