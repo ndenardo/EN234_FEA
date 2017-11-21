@@ -3,7 +3,7 @@
 !
 !
 
-     subroutine vumat(nblock, ndir, nshr, nstatev, nfieldv, nprops, lanneal, &
+     subroutine vumat1(nblock, ndir, nshr, nstatev, nfieldv, nprops, lanneal, &
        stepTime, totalTime, dt, cmname, coordMp, charLength, &
        props, density, strainInc, relSpinInc, &
        tempOld, stretchOld, defgradOld, fieldOld, &
@@ -121,4 +121,4 @@
 
 
 !
-End Subroutine vumat
+End Subroutine vumat1

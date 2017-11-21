@@ -120,6 +120,7 @@
 		<File RelativePath="..\..\EN234_FEA\user_codes\src\abaqus_umat_porous_elastic.for"/>
 		<File RelativePath="..\..\EN234_FEA\user_codes\src\abaqus_vuel.for"/>
 		<File RelativePath="..\..\EN234_FEA\user_codes\src\abaqus_vumat.f90"/>
+		<File RelativePath="..\..\EN234_FEA\user_codes\src\abaqus_vumat_mccormick.for"/>
 		<File RelativePath="..\..\EN234_FEA\user_codes\src\convergencecheck.f90"/>
 		<File RelativePath="..\..\EN234_FEA\user_codes\src\el_linelast_3Dbasic.f90"/>
 		<File RelativePath="..\..\EN234_FEA\user_codes\src\new_user_element_stub.f90"/>

@@ -39,7 +39,7 @@
          70.d03, 0.3d0              % E (MPa), nu; 
          70.d0, 0.001d0, 0.3d0      % Y (MPa), e0, m
          1.d-08, 2.23d0, 27.9d0     % edot0 (s^-1), S (MPa), H (MPa)
-         0.02d0, 1.5d-04, 0.336d0    % td (s), Omega, alpha
+         0.02d0, 1.8d-05, 0.336d0    % td (s), Omega, alpha
         END PROPERTIES
       END MATERIAL
 %

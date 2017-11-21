@@ -136,6 +136,7 @@
       
     !     ABAQUS UEL implementing 2D elements for solution of cahn-hilliard equation, elasticity
       
+      
       n_points = 4
      
       call abq_UEL_2D_integrationpoints(n_points, NNODE, xi, w)
