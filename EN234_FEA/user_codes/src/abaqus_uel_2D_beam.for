@@ -3,16 +3,18 @@
 !
 !    This file is compatible with both EN234_FEA and ABAQUS/Standard
 !
-!    The example implements a UEL which models spinoidal decompostion via the cahn-hilliard equation, coupled with linear elasticity
+!    The example implements a standard fully integrated 2D linear elastic continuum element
 !
-!    The file also needs the following subrouines:
+!    The file also needs the following subroutines:
 !          abq_UEL_2D_integrationpoints           - defines integration points for 2D continuum elements
 !          abq_UEL_2D_shapefunctions              - defines shape functions for 2D continuum elements
 !          abq_UEL_1D_integrationpoints           - defines integration points for 1D line integral
 !          abq_facenodes_2D                       - returns list of nodes on an element face
+!          abq_inverse_LU                         - computes the inverse of an arbitrary matrix by LU decomposition
+!          abq_UEL_invert2d                       - computes inverse and determinant of a 2x2 matrix
 !=========================== ABAQUS format user element subroutine ===================
 
-      SUBROUTINE UEL_CH(RHS,AMATRX,SVARS,ENERGY,NDOFEL,NRHS,NSVARS,
+      SUBROUTINE UEL(RHS,AMATRX,SVARS,ENERGY,NDOFEL,NRHS,NSVARS,
      1     PROPS,NPROPS,COORDS,MCRD,NNODE,U,DU,V,A,JTYPE,TIME,DTIME,
      2     KSTEP,KINC,JELEM,PARAMS,NDLOAD,JDLTYP,ADLMAG,PREDEF,NPREDF,
      3     LFLAGS,MLVARX,DDLMAG,MDLOAD,PNEWDT,JPROPS,NJPROP,PERIOD)
@@ -94,52 +96,57 @@
     !
     !
     ! Local Variables
-      integer      :: i,j,n_points,kint, nfacenodes, ipoin, ksize
-      integer      :: face_node_list(3)                      ! List of nodes on an element face
-
-    ! Define 8-noded shape functions
-      double precision  ::  xi(2,9)                           ! Area integration points
-      double precision  ::  w(9)                              ! Area integration weights
-      double precision  ::  N(9)                              ! Interpolation functions
+      integer      :: i,j,n_points,kint, nfacenodes, ipoin, ksize,NNODEs
+      integer      :: face_node_list(3)                       ! List of nodes on an element face
+    !
+      double precision  ::  xi(2,5)                           ! Area integration points
+      double precision  ::  w(5)                              ! Area integration weights
+      double precision  ::  N(5)                              ! 2D shape functions
       double precision  ::  dNdxi(9,2)                        ! 2D shape function derivatives
       double precision  ::  dNdx(9,2)                         ! Spatial derivatives
       double precision  ::  dxdxi(2,2)                        ! Derivative of spatial coords wrt normalized coords
-      double precision  ::  dxidx(2,2), determinant           ! Jacobian inverse and determinant
-      
-    ! Define 4-noded shape functions corresponding to corner nodes
-      double precision  ::  Nbar(9)                           ! Interpolation functions
-      double precision  ::  dNbardxi(9,2)                     ! 2D shape function derivatives
-      double precision  ::  dNbardx(9,2)                      ! Spatial derivatives
-      
-    ! Variables below are for computing integrals over element faces (not implemented)
+    
+    !   Variables below are for computing integrals over element faces
       double precision  ::  face_coords(2,3)                  ! Coords of nodes on an element face
-      double precision  ::  xi1(6)                            ! 1D integration points
-      double precision  ::  w1(6)                             ! Integration weights
+      double precision  ::  xi1(5)                            ! 1D integration points
+      double precision  ::  w1(5)                             ! Integration weights
       double precision  ::  N1(3)                             ! 1D shape functions
       double precision  ::  dN1dxi(3)                         ! 1D shape function derivatives
       double precision  ::  norm(2)                           ! Normal to an element face
       double precision  ::  dxdxi1(2)                         ! Derivative of 1D spatial coord wrt normalized areal coord
     !
-      double precision  ::  strain(4)                         ! Strain vector contains [e11, e22, e33, 2e12, 2e13, 2e23]
-      double precision  ::  stress(4)                         ! Stress vector contains [s11, s22, s33, s12, s13, s23]
-      double precision  ::  De(4,4)                           ! Elastic stress = De*(strain) (NOTE FACTOR OF 2 in shear strain)
-      double precision  ::  B(9,24)                           ! strain = B*(dof_total)
-      double precision  ::  E, xnu, De11, De12, De44          ! Elastic moduli and contitutive properties 
-      double precision  ::  Omega, We, Kappa, Diff, Theta     ! Diffusion properties
-                                          
-      double precision  ::  c                                 ! Concentration states at integration points
-      double precision  ::  f, dfdc                           ! function of concentration and its derivative
-      double precision  ::  P(9), dP(9)                       ! Vectors used in computing Q
-      double precision  ::  Q(9)                              ! Vector of elastic, concentration stresses
-      double precision  ::  D(9,9)                            ! Constitutive matrix
-      double precision  ::  skk                               ! Summation of normal stress values
+      double precision  ::  scoords(2,4)                      ! Coordinates of slave nodes
+      double precision  ::  T(8,6)                            ! Relates dofs of master, slave nodes
+      double precision  ::  elam1(2), elam2(2)                ! Laminar basis vector components
+      double precision  ::  R(2,3)                            ! Relates strain components in global, laminar bases
+      double precision  ::  RBT(2,6)                          ! For simplification
+      double precision  ::  Tension, Shear, Moment            ! Beam forces to be saved as SVARS
       
-    !     ABAQUS UEL implementing 2D elements for solution of cahn-hilliard equation, elasticity
+      double precision  ::  strain(2)                         ! Strain vector contains [e11, e12]
+      double precision  ::  stress(2)                         ! Stress vector contains [s11, s12]
+      double precision  ::  D(2,2)                            ! stress = D*(strain)  (NOTE FACTOR OF 2 in shear strain)
+      double precision  ::  B(3,8)                            ! strain = B*(dof_total)
+      double precision  ::  dxidx(2,2), determinant, det0     ! Jacobian inverse and determinant
+      double precision  ::  costi, sinti                      ! Beam rotation components (same for 1,2)
+      double precision  ::  h, wi, L                          ! Beam element geometry
+      double precision  ::  E, xnu, G                         ! Material properties
+
+    ! ABAQUS UEL implementing a 2D, small strain, linear elastic, beam element     
       
-      
-      n_points = 4
-     
-      call abq_UEL_2D_integrationpoints(n_points, NNODE, xi, w)
+      NNODEs = 4
+
+      !Establish 1D integration sceheme in xi2 - Assume weights for trapezoidal integration
+      n_points = 5
+      xi = 0.d0
+      xi(2,1) = 1.d0
+      xi(2,2) = 0.5d0
+      xi(2,4) = -0.5d0
+      xi(2,5) = -1.d0
+      w(1) = 0.25d0
+      w(2) = 0.5d0
+      w(3) = 0.5d0
+      w(4) = 0.5d0
+      w(5) = 0.25d0
  
       if (MLVARX<2*NNODE) then
         write(6,*) ' Error in abaqus UEL '
@@ -147,141 +154,123 @@
         write(6,*) ' MLVARX = ',MLVARX,' NNODE = ',NNODE
         stop
       endif
-      
-      RHS(1:MLVARX,1) = 0.d0
+
+      RHS(1:MLVARX,1)           = 0.d0
       AMATRX(1:NDOFEL,1:NDOFEL) = 0.d0
-      stress = 0.d0
-      strain = 0.d0
-      skk    = 0.d0
+      Tension                   = 0.d0
+      Shear                     = 0.d0
+      Moment                    = 0.d0
+
+      ! Extract element properties
+      h   = PROPS(1)
+      wi  = PROPS(2)
+      E   = PROPS(3)
+      xnu = PROPS(4)
       
-      E     = PROPS(1)
-      xnu   = PROPS(2)
-      Omega = PROPS(3)
-      We    = PROPS(4)
-      Kappa = PROPS(5)
-      Diff  = PROPS(6)
-      Theta = PROPS(7)
+      ! Define constutive matrix
+      G = E/(2.d0*(1.d0+xnu))
+      D = 0.d0
+      D(1,1) = E
+      D(2,2) = G
       
-      De11 = (1.d0-xnu)             * (E/((1.d0+xnu)*(1.d0-2.d0*xnu)))
-      De12 = xnu                    * (E/((1.d0+xnu)*(1.d0-2.d0*xnu)))
-      De44 = ((1.d0-2.d0*xnu)/2.d0) * (E/((1.d0+xnu)*(1.d0-2.d0*xnu)))
+      ! Define internal element geometry
+      L = sqrt((COORDS(1,2)-COORDS(1,1))**2.d0 + 
+     1                                (COORDS(2,2)-COORDS(2,1))**2.d0)
       
-      De = 0.d0
-      De(1:3,1:3) = De12
-      De(1,1) = De11
-      De(2,2) = De11
-      De(3,3) = De11
-      De(4,4) = De44
+      sinti = (COORDS(2,2)-COORDS(2,1))/L
+      costi = (COORDS(1,2)-COORDS(1,1))/L
+      
+      scoords = 0.d0
+      scoords(1,1) = COORDS(1,1) + (h/2.d0)*sinti !x11
+      scoords(1,2) = COORDS(1,2) + (h/2.d0)*sinti !x12
+      scoords(1,3) = COORDS(1,2) - (h/2.d0)*sinti !x13
+      scoords(1,4) = COORDS(1,1) - (h/2.d0)*sinti !x14
+      scoords(2,1) = COORDS(2,1) - (h/2.d0)*costi !x21
+      scoords(2,2) = COORDS(2,2) - (h/2.d0)*costi !x22
+      scoords(2,3) = COORDS(2,2) + (h/2.d0)*costi !x23
+      scoords(2,4) = COORDS(2,1) + (h/2.d0)*costi !x24
+      
+      T = 0.d0
+      T(1,3) =   COORDS(2,1) - scoords(2,1)
+      T(2,3) = -(COORDS(1,1) - scoords(1,1))
+      T(3,6) =   COORDS(2,2) - scoords(2,2)
+      T(4,6) =   COORDS(1,2) - scoords(1,2)
+      T(5,6) =   COORDS(2,2) - scoords(2,3)
+      T(6,6) =   COORDS(1,2) - scoords(1,3)
+      T(7,3) =   COORDS(2,1) - scoords(2,4)
+      T(8,3) = -(COORDS(1,1) - scoords(1,4))
+      T(1,1) = 1.d0
+      T(2,2) = 1.d0
+      T(7,1) = 1.d0
+      T(8,2) = 1.d0
+      T(3,4) = 1.d0
+      T(4,5) = 1.d0
+      T(5,4) = 1.d0
+      T(6,5) = 1.d0
 
       ENERGY(1:8) = 0.d0
 
-    ! -- Loop over integration points
+    ! Loop over 1D trapezoidal integration points
       do kint = 1, n_points
+        call abq_UEL_2D_shapefunctions(xi(1:2,kint),NNODEs,N,dNdxi)
+        dxdxi = matmul(scoords(1:2,1:NNODEs),dNdxi(1:NNODEs,1:2))
         
-      ! define shape functions for different nodal schemes
-        call abq_UEL_2D_shapefunctions(xi(1:2,kint),NNODE,N,dNdxi)
-        call abq_UEL_2D_shapefunctions(xi(1:2,kint),4,Nbar,dNbardxi)
+        call abq_UEL_invert2d(dxdxi,dxidx,determinant)
+        dNdx(1:NNODEs,1:2) = matmul(dNdxi(1:NNODEs,1:2),dxidx)
         
-        dxdxi = matmul(COORDS(1:2,1:NNODE),dNdxi(1:NNODE,1:2))
-        
-      ! invert dxdxi
-        determinant = dxdxi(1,1)*dxdxi(2,2)-dxdxi(1,2)*dxdxi(2,1)
-        dxidx(1,1:2) =  [ dxdxi(2,2),-dxdxi(1,2)]/determinant
-        dxidx(2,1:2) =  [-dxdxi(2,1),dxdxi(1,1) ]/determinant
-
-        dNdx(1:NNODE,1:2) = matmul(dNdxi(1:NNODE,1:2),dxidx)
-        dNbardx(1:4,1:2) = matmul(dNbardxi(1:4,1:2),dxidx)
-        
-      ! Assemble the B matrix
         B = 0.d0
-        B(1,1:2*NNODE-3:4) = dNdx(1:NNODE/2,1)
-        B(2,2:2*NNODE-2:4) = dNdx(1:NNODE/2,2)
-        B(3,1:2*NNODE-3:4) = dNdx(1:NNODE/2,2)
-        B(3,2:2*NNODE-2:4) = dNdx(1:NNODE/2,1)
-        B(4,3:2*NNODE-1:4) = Nbar(1:4)
-        B(5,4:2*NNODE:4)   = Nbar(1:4)
-        B(6,3:2*NNODE-1:4) = dNbardx(1:4,1)
-        B(7,3:2*NNODE-1:4) = dNbardx(1:4,2)
-        B(8,4:2*NNODE:4)   = dNbardx(1:4,1)
-        B(9,4:2*NNODE:4)   = dNbardx(1:4,2)
+        B(1,1:2*NNODEs-1:2) = dNdx(1:NNODEs,1)
+        B(2,2:2*NNODEs:2)   = dNdx(1:NNODEs,2)
+        B(3,1:2*NNODEs-1:2) = dNdx(1:NNODEs,2)
+        B(3,2:2*NNODEs:2)   = dNdx(1:NNODEs,1)
         
-        B(1,2*NNODE+1:3*NNODE-1:2) = dNdx(NNODE/2+1:NNODE,1)
-        B(2,2*NNODE+2:3*NNODE:2)   = dNdx(NNODE/2+1:NNODE,2)
-        B(3,2*NNODE+1:3*NNODE-1:2) = dNdx(NNODE/2+1:NNODE,2)
-        B(3,2*NNODE+2:3*NNODE:2)   = dNdx(NNODE/2+1:NNODE,1)
+        elam1 =(1.d0/sqrt(dxdxi(1,1)**2.d0+dxdxi(2,1)**2.d0))*dxdxi(:,1)
+        elam2 =(1.d0/sqrt(dxdxi(1,2)**2.d0+dxdxi(2,2)**2.d0))*dxdxi(:,2)
         
-      ! Compute the P, dP vectors to get mu, c, dc
-        P  = 0.d0
-        dP = 0.d0
-        P  = matmul(B(1:9,1:3*NNODE),U(1:3*NNODE))
-        dP = matmul(B(1:9,1:3*NNODE),DU(1:3*NNODE,1))
+        R = 0.d0
+        R(1,1) = elam1(1)**2.d0
+        R(1,2) = elam1(2)**2.d0
+        R(1,3) = elam1(1)*elam1(2)
+        R(2,1) = 2.d0*elam1(1)*elam2(1)
+        R(2,2) = 2.d0*elam1(2)*elam2(2)
+        R(2,3) = elam1(1)*elam2(2) + elam1(2)*elam2(1)
         
-        c  = 0.d0
-        c  = P(5)  !c = c  + dc
-
-      ! Assemble D Matrix
-        dfdc = 0.d0
-        dfdc = We*(12.d0*(c**2.d0) - 12.d0*c + 2.d0)
+        RBT = matmul(R,matmul(B,T))
         
-        D = 0.d0        
-        D(1:2,1:2) = De(1:2,1:2)
-        D(3,3) = De(4,4)
-        D(4,1) = -Omega*(De(1,1)+De(1,2)+De(1,3))/3.d0
-        D(1,5) = -Omega*(De(1,1)+De(1,2)+De(1,3))/3.d0
-        D(4,2) = -Omega*(De(2,1)+De(2,2)+De(2,3))/3.d0
-        D(2,5) = -Omega*(De(2,1)+De(2,2)+De(2,3))/3.d0
-        D(4,4) = 1.d0
-        D(4,5) = -dfdc - ((Omega**2.d0)/9.d0) * 
-     1   (De(1,1)+De(1,2)+De(1,3)+De(2,1)+De(2,2)+De(2,3)+
-     2    De(3,1)+De(3,2)+De(3,3))
-        D(5,5) = 1.d0/DTIME
-        D(8,6) = Theta*Diff
-        D(9,7) = Theta*Diff
-        D(6,8) = -Kappa
-        D(7,9) = -Kappa
+        strain = matmul(R,matmul(B,matmul(T,U)))
+        stress = matmul(D,strain)
         
-      ! Compute stress values, skk
-        strain(1) = P(1) - Omega*(c)/3.d0
-        strain(2) = P(2) - Omega*(c)/3.d0
-        strain(3) = 0    - Omega*(c)/3.d0
-        strain(4) = P(3) 
-        stress(1:4) = matmul(De,strain(1:4))
-        skk = stress(1) + stress(2) + stress(3)
-        
-      ! Assemble Q vector
-        f = 0.d0
-        f = 2.d0*We*(c)*(c-1.d0)*((2.d0*c)-1.d0) ! = f(c + dc)
-        
-        Q    = 0.d0
-        Q(1) = stress(1)
-        Q(2) = stress(2)
-        Q(3) = stress(4)
-        Q(4) = P(4) - f - Omega*skk/3.d0
-        Q(5) = dP(5)/DTIME
-        Q(6) = -Kappa*P(8)
-        Q(7) = -Kappa*P(9)
-        Q(8) = Diff*(P(6)+(Theta-1.d0)*dP(6))
-        Q(9) = Diff*(P(7)+(Theta-1.d0)*dP(7))
-        
-      ! Assemble element stiffness and residual 
         RHS(1:3*NNODE,1) = RHS(1:3*NNODE,1)
-     1  - matmul(transpose(B(1:9,1:3*NNODE)),Q)*w(kint)*determinant 
+     1   - matmul(transpose(RBT),stress)*
+     2                                wi*L*(h/2.d0)*w(kint)
 
         AMATRX(1:3*NNODE,1:3*NNODE) = AMATRX(1:3*NNODE,1:3*NNODE)
-     1  + matmul(transpose(B(1:9,1:3*NNODE)),matmul(D,B(1:9,1:3*NNODE)))
-     2                                             *w(kint)*determinant
-                
-        ENERGY(2) = ENERGY(2)
-     1   + 0.5D0*dot_product(Q,P)*w(kint)*determinant           ! Store the elastic strain energy
-
+     1  + matmul(transpose(RBT),matmul(D,RBT))*
+     2                                 wi*L*(h/2.d0)*w(kint)
+        
+        Tension = Tension + stress(1)*wi*(h/2.d0)*w(kint)
+        
+        Shear = Shear + stress(2)*wi*(h/2.d0)*w(kint)
+        
+        Moment = Moment + stress(1)*xi(2,kint)*wi*(h**2.d0/4.d0)*w(kint)
+        
         if (NSVARS>=n_points*4) then   ! Store stress at each integration point (if space was allocated to do so)
             SVARS(4*kint-3:4*kint) = stress(1:4)
         endif
-        
       end do
 
+      SVARS(1) = Tension
+      SVARS(2) = Shear
+      SVARS(3) = Moment
+
       PNEWDT = 1.d0          ! This leaves the timestep unchanged (ABAQUS will use its own algorithm to determine DTIME)
+    !
+    !   Apply distributed loads
+    !
+    !   Distributed loads are specified in the input file using the Un option in the input file.
+    !   n specifies the face number, following the ABAQUS convention
+    !
       
       return
 
-      END SUBROUTINE UEL_CH
+      END SUBROUTINE UEL

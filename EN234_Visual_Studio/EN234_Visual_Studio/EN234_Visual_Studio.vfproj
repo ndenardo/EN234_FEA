@@ -111,6 +111,8 @@
 		<File RelativePath="..\..\EN234_FEA\user_codes\modules\Element_Utilities.f90"/></Filter>
 		<Filter Name="Source">
 		<File RelativePath="..\..\EN234_FEA\user_codes\src\abaqus_tecplot_interface.f90"/>
+		<File RelativePath="..\..\EN234_FEA\user_codes\src\abaqus_uel_2D.for"/>
+		<File RelativePath="..\..\EN234_FEA\user_codes\src\abaqus_uel_2D_beam.for"/>
 		<File RelativePath="..\..\EN234_FEA\user_codes\src\abaqus_uel_2D_cahn_hilliard.for"/>
 		<File RelativePath="..\..\EN234_FEA\user_codes\src\abaqus_uel_2D_inc.for"/>
 		<File RelativePath="..\..\EN234_FEA\user_codes\src\abaqus_uel_cahnHilliard_plain.for"/>

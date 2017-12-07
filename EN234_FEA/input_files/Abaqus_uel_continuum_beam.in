@@ -44,7 +44,7 @@
 %       Define element properties - the values are passed to user subroutine elstif in the order they are listed here
 %       For the example provided, the params are beam thickness h, width w,  Youngs Modulus, Poissons ratio
         PROPERTIES
-         4.d0, 1.d0, 100.d0, 0.3d0
+         1.d0, 1.d0, 100.d0, 0.3d0
         END PROPERTIES
 %     Define element connectivity
 %     The element number (first number in the list) is optional, and is ignored in the code
@@ -111,7 +111,7 @@
 
 %  Print the initial mesh to a file named initial_mesh.dat
 
-   PRINT INITIAL MESH, Output_files\initial_mesh.dat
+%  PRINT INITIAL MESH, Output_files\initial_mesh.dat
 
 %   TIME, VALUE, 0.d0        % Use this to specify the initial time
 %   TIME, INCREMENT, 0.01d0  % Use this to specify a time increment (often needed for check stiffness)

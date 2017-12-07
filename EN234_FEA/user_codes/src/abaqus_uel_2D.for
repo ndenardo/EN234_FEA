@@ -186,8 +186,8 @@
         
         
         strain = matmul(B(1:4,1:2*NNODE),U(1:2*NNODE))
-
         stress = matmul(D,strain)
+        
         RHS(1:2*NNODE,1) = RHS(1:2*NNODE,1)
      1   - matmul(transpose(B(1:4,1:2*NNODE)),stress(1:4))*
      2                                          w(kint)*determinant
