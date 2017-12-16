@@ -58,12 +58,15 @@
 		<File RelativePath="..\..\EN234_FEA\input_files\Abaqus_uel_holeplate_2d_tri3.in"/>
 		<File RelativePath="..\..\EN234_FEA\input_files\Abaqus_uel_holeplate_2d_tri6.in"/>
 		<File RelativePath="..\..\EN234_FEA\input_files\Abaqus_uel_holeplate_3d.in"/>
+		<File RelativePath="..\..\EN234_FEA\input_files\Abaqus_uel_holeplate_3d_fbbar.in"/>
 		<File RelativePath="..\..\EN234_FEA\input_files\Abaqus_uel_hyperelastic.in"/>
 		<File RelativePath="..\..\EN234_FEA\input_files\Abaqus_uel_linear_elastic_2d.in"/>
 		<File RelativePath="..\..\EN234_FEA\input_files\Abaqus_uel_linear_elastic_3d.in"/>
 		<File RelativePath="..\..\EN234_FEA\input_files\Abaqus_uel_phasefield_1el.in"/>
 		<File RelativePath="..\..\EN234_FEA\input_files\Abaqus_uel_phasefield_coarse.in"/>
 		<File RelativePath="..\..\EN234_FEA\input_files\Abaqus_uel_phasefield_fine.in"/>
+		<File RelativePath="..\..\EN234_FEA\input_files\Abaqus_uel_vdev.in"/>
+		<File RelativePath="..\..\EN234_FEA\input_files\Abaqus_uel_vpres.in"/>
 		<File RelativePath="..\..\EN234_FEA\input_files\Abaqus_umat_holeplate_3d.in"/>
 		<File RelativePath="..\..\EN234_FEA\input_files\Abaqus_umat_hyperelastic2.in"/>
 		<File RelativePath="..\..\EN234_FEA\input_files\Abaqus_Umat_Linear_elastic_2d.in"/>
@@ -116,6 +119,7 @@
 		<File RelativePath="..\..\EN234_FEA\user_codes\src\abaqus_uel_2D_cahn_hilliard.for"/>
 		<File RelativePath="..\..\EN234_FEA\user_codes\src\abaqus_uel_2D_inc.for"/>
 		<File RelativePath="..\..\EN234_FEA\user_codes\src\abaqus_uel_cahnHilliard_plain.for"/>
+		<File RelativePath="..\..\EN234_FEA\user_codes\src\abaqus_uel_fbbar_3d.for"/>
 		<File RelativePath="..\..\EN234_FEA\user_codes\src\abaqus_uel_hyperelastic_3d.for"/>
 		<File RelativePath="..\..\EN234_FEA\user_codes\src\abaqus_uel_linelastic_3d.for"/>
 		<File RelativePath="..\..\EN234_FEA\user_codes\src\abaqus_umat_elastic.for"/>

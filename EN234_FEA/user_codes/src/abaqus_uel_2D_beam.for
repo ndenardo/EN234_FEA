@@ -14,7 +14,7 @@
 !          abq_UEL_invert2d                       - computes inverse and determinant of a 2x2 matrix
 !=========================== ABAQUS format user element subroutine ===================
 
-      SUBROUTINE UEL(RHS,AMATRX,SVARS,ENERGY,NDOFEL,NRHS,NSVARS,
+      SUBROUTINE UEL_BEAM(RHS,AMATRX,SVARS,ENERGY,NDOFEL,NRHS,NSVARS,
      1     PROPS,NPROPS,COORDS,MCRD,NNODE,U,DU,V,A,JTYPE,TIME,DTIME,
      2     KSTEP,KINC,JELEM,PARAMS,NDLOAD,JDLTYP,ADLMAG,PREDEF,NPREDF,
      3     LFLAGS,MLVARX,DDLMAG,MDLOAD,PNEWDT,JPROPS,NJPROP,PERIOD)
@@ -273,4 +273,4 @@
       
       return
 
-      END SUBROUTINE UEL
+      END SUBROUTINE UEL_BEAM

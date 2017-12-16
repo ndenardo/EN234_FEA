@@ -120,8 +120,16 @@ program en234fea
 
 !   Homework 10 - Continuum beam element solution to end loaded cantilever beam
    
-   infil = 'input_files/Abaqus_uel_continuum_beam.in'
-   outfil = 'Output_files/Abaqus_uel_continuum_beam.out'
+   !infil = 'input_files/Abaqus_uel_continuum_beam.in'
+   !outfil = 'Output_files/Abaqus_uel_continuum_beam.out'
+   
+!   Project - Finite strain B-bar element
+   !infil = 'Abaqus_uel_holeplate_3d_fbbar.in'
+   infil = 'input_files/Abaqus_uel_hyperelastic.in'
+   !infil = 'input_files/Abaqus_uel_vpres.in'
+   !infil = 'input_files/Abaqus_uel_vdev.in'
+   outfil = 'Output_files/Abaqus_uel_hyperelastic.out'   
+   
 
    infil = trim(root_directory)//trim(infil)
    outfil = trim(root_directory)//trim(outfil)
